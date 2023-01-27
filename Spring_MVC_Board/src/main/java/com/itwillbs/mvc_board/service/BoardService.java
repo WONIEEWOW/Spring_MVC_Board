@@ -43,6 +43,24 @@ public class BoardService {
 	public void increaseReadcount(int board_num) {
 		mapper.updateReadcount(board_num);
 	}
+
+	// 게시물의 패스워드 일치여부 판별
+	// => 파라미터 : 글번호, 패스워드    리턴타입 : BoardVO
+	public BoardVO isBoardWriter(int board_num, String board_pass) {
+		return mapper.selectBoardWriter(board_num, board_pass);
+	}
+
+	// 게시물 파일명 조회
+	// => 파라미터 : 글번호    리턴타입 : String(realFile)
+	public String getRealFile(int board_num) {
+		return mapper.selectRealFile(board_num);
+	}
+	
+	// 게시물 삭제
+	// => 파라미터 : 글번호    리턴타입 : int(deleteCount)
+	public int removeBoard(int board_num) {
+		return mapper.deleteBoard(board_num);
+	}
 	
 }
 

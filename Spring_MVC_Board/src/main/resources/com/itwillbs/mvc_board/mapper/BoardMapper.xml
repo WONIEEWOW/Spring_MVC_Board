@@ -130,6 +130,31 @@
 				board_num = #{board_num}
 	</update>
 	
+	<!-- 게시물 패스워드 판별하는 select 태그 -->
+	<!-- 조회 결과가 단일 컬럼이라도 VO 객체에 저장 가능 -->
+	<select id="selectBoardWriter" resultType="com.itwillbs.mvc_board.vo.BoardVO">
+		SELECT board_name
+			FROM board
+			WHERE
+				board_num = #{board_num}
+				AND board_pass = #{board_pass}
+	</select>
+	
+	<!-- 게시물 파일명 조회하는 select 태그 -->
+	<select id="selectRealFile" resultType="string">
+		SELECT board_real_file
+			FROM board
+			WHERE
+				board_num = #{board_num}
+	</select>
+	
+	<!-- 게시물 삭제하는 delete 태그 -->
+	<delete id="deleteBoard">
+		DELETE 
+			FROM board
+			WHERE
+				board_num = #{board_num}
+	</delete>
 </mapper>
 
 

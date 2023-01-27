@@ -36,6 +36,21 @@ public interface BoardMapper {
 	// 5. 조회수 증가
 	// => 파라미터 : 글번호
 	void updateReadcount(int board_num);
+
+	// 6. 게시물의 패스워드 일치여부 판별
+	// => 파라미터 : 글번호, 패스워드    리턴타입 : BoardVO
+	BoardVO selectBoardWriter(
+			@Param("board_num") int board_num, @Param("board_pass") String board_pass);
+
+	// 7. 게시물 파일명 조회
+	// => 파라미터 : 글번호    리턴타입 : String
+	String selectRealFile(int board_num);
+
+	// 8. 게시물 삭제
+	// => 파라미터 : 글번호    리턴타입 : int
+	int deleteBoard(int board_num);
+	
+	
 }
 
 
