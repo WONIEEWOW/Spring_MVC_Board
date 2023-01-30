@@ -63,6 +63,82 @@
 		text-decoration: none;
 	}
 </style>
+<script src="${pageContext.request.contextPath }/resources/js/jquery-3.6.3.js"></script>
+<script type="text/javascript">
+	// AJAX 를 활용한 게시물 목록 표시에 사용될 페이지 번호값 미리 저장
+	let pageNum = 1;
+	
+	$(function() {
+		// 검색타입(searchType)과 검색어(keyword) 값 가져와서 변수에 저장
+		let searchType = $("#searchType").val();
+		let keyword = $("#keyword").val();
+// 		alert(searchType + ", " + keyword);
+		
+		// 게시물 목록 조회를 처음 수행하기 위해 load_list() 함수 호출
+		// => 검색타입과 검색어를 파라미터로 전달(검색하지 않을 경우에도 동일) 
+		load_list(searchType, keyword);
+		
+		// 무한스크롤 기능 구현
+		// window 객체에서 scroll 동작 시 기능 수행(이벤트 처리)을 위해 scroll() 함수 호출
+		$(window).scroll(function() {
+// 			$("#listForm").before("확인");
+			// 1. window 객체와 document 객체를 활용하여 스크롤 관련 값 가져오기
+			// => 스크롤바 현재 위치, 문서 표시되는 창의 높이, 문서 전체 높이
+			let scrollTop = $(window).scrollTop();
+			let windowHeight = $(window).height();
+			let documentHeight = $(document).height();
+			
+// 			console.log("scrollTop : " + scrollTop + ", windowHeight : " + windowHeight + ", documentHeight : " + documentHeight + "<br>");
+
+			// 2. 스크롤바 위치값 + 창 높이 + x 가 문서 전체 높이 이상이면
+			//    다음 페이지 게시물 목록 로딩하여 추가
+			// => 이 때, x 값은 마지막으로부터 여유 공간으로 둘 스크롤바 아래쪽 남은 공간(픽셀값)
+			//    (x 값을 1로 지정 시 스크롤바가 바닥에 닿을 때 다음 페이지 로딩)
+			if(scrollTop + windowHeight + 1 >= documentHeight) {
+				// 다음 페이지 로딩하기 위한 load_list() 함수 호출
+				// => 이 때, 페이지 번호를 1 증가시켜 다음 페이지 목록 로딩
+				pageNum++;
+				load_list(searchType, keyword);
+			}
+		});
+	});
+	
+	// 게시물 목록 조회를 AJAX + JSON 으로 처리할 load_list() 함수 정의
+	// => 검색타입과 검색어를 파라미터로 지정
+	function load_list(searchType, keyword) {
+		$.ajax({
+			type: "GET",
+// 			url: "BoardListJson.bo?pageNum=" + pageNum,
+			url: "BoardListJson.bo?pageNum=" + pageNum + "&searchType=" + searchType + "&keyword=" + keyword,
+			dataType: "json"
+		})
+		.done(function(boardList) { // 요청 성공 시
+// 			$("#listForm > table").append(boardList);
+			
+			// JSONArray 객체를 통해 배열 형태로 전달받은 JSON 데이터를
+			// 반복문을 통해 하나씩 접근하여 객체 꺼내기
+			for(let board of boardList) {
+				// 테이블에 표시할 JSON 데이터 출력문 생성
+				// => 출력할 데이터는 board.xxx 형식으로 접근
+				let result = "<tr height='100'>"
+							+ "<td>" + board.board_num + "</td>"
+							+ "<td id='subject'>" 
+								+ "<a href='BoardDetail.bo?board_num=" + board.board_num + "'>"
+								+ board.board_subject + "</a></td>"
+							+ "<td>" + board.board_name + "</td>"
+							+ "<td>" + board.board_date + "</td>"
+							+ "<td>" + board.board_readcount + "</td>"
+							+ "</tr>";
+				
+				// 지정된 위치(table 태그 내부)에 JSON 객체 출력문 추가
+				$("#listForm > table").append(result);
+			}
+		})
+		.fail(function() {
+			$("#listForm > table").append("<h3>요청 실패!</h3>");
+		});
+	}
+</script>
 </head>
 <body>
 	<header>
@@ -71,109 +147,32 @@
 	</header>
 	<!-- 게시판 리스트 -->
 	<section id="listForm">
-	<h2>게시판 글 목록</h2>
+		<h2>게시판 글 목록</h2>
 		<section id="buttonArea">
-		<form action="BoardList.bo">
-			<select name="searchType">
-				<option value="subject" <c:if test ="${param.searchType eq 'subject'}">selected</c:if>>제목</option>
-				<option value="content" <c:if test ="${param.searchType eq 'content'}">selected</c:if>>내용</option>
-				<option value="subject_content" <c:if test ="${param.searchType eq 'subject_content'}">selected</c:if>>제목&내용</option>
-				<option value="name" <c:if test ="${param.searchType eq 'name'}">selected</c:if>>작성자</option>
-			</select>
-			<input type="text" name="keyword" value="${keyword }">
-			<input type="submit" value="검색">
-			&nbsp;&nbsp;
-			<input type="button" value="글쓰기" onclick="location.href='BoardWriteForm.bo'" />
-		</form>
-	</section>
-	<table>
-		<tr id="tr_top">
-			<td width="100px">번호</td>
-			<td>제목</td>
-			<td width="150px">작성자</td>
-			<td width="150px">날짜</td>
-			<td width="100px">조회수</td>
-		</tr>
-		<!-- JSTL 과 EL 활용하여 글목록 표시 작업 반복 -->
-		<%-- for(BoardBean board : boardList) {} --%>
-		<c:forEach var="board" items="${boardList }">
-			<tr>
-				<td>${board.board_num }</td>
-				<!-- 제목 하이퍼링크(BoardDetail.bo) 연결 -> 파라미터 : 글번호, 페이지번호 -->
-				<!-- 만약, pageNum 파라미터가 비어있을 경우 pageNum 변수 선언 및 기본값 1로 설정 -->
-				<c:choose>
-					<c:when test="${empty param.pageNum }">
-						<c:set var="pageNum" value="1" />
-					</c:when>
-					<c:otherwise>
-						<c:set var="pageNum" value="${param.pageNum }" />
-					</c:otherwise>
-				</c:choose>
-				<td id="subject">
-					<%-- ======================== 답글 관련 처리 ======================= --%>
-					<%-- board_re_lev 값이 0보다 크면 답글이므로 들여쓰기 후 이미지 추가 --%>
-					<c:if test="${board.board_re_lev > 0 }">
-						<%-- 반복문을 통해 board_re_lev 값 만큼 공백 추가 --%>
-						<c:forEach var="i" begin="1" end="${board.board_re_lev }">
-							&nbsp;&nbsp;
-						</c:forEach>
-						<%-- 답글 제목 앞에 이미지 추가 --%>
-						<img src="images/re.gif">	
-					</c:if>
-					<%-- =============================================================== --%>
-					<a href="BoardDetail.bo?board_num=${board.board_num }&pageNum=${pageNum }">
-						${board.board_subject }
-					</a>
-				</td>
-				<td>${board.board_name }</td>
-				<td>
-					<%-- JSTL 의 fmt 라이브러리를 활용하여 날짜 표현 형식 변경 --%>
-					<%-- fmt:formatDate - Date 타입 날짜 형식 변경 --%>
-					<%-- fmt:parseDate - String 타입 날짜 형식 변경 --%>
-					<fmt:formatDate value="${board.board_date }" pattern="yy-MM-dd HH:mm"/>
-				</td>
-				<td>${board.board_readcount }</td>
+			<form action="BoardList.bo">
+				<!-- 검색 타입 추가 -->
+				<select name="searchType" id="searchType">
+					<option value="subject" <c:if test="${param.searchType eq 'subject'}">selected</c:if>>제목</option>
+					<option value="content" <c:if test="${param.searchType eq 'content'}">selected</c:if>>내용</option>
+					<option value="subject_content" <c:if test="${param.searchType eq 'subject_content'}">selected</c:if>>제목&내용</option>
+					<option value="name" <c:if test="${param.searchType eq 'name'}">selected</c:if>>작성자</option>
+				</select>
+				<input type="text" name="keyword" id="keyword" value="${param.keyword }">
+				<input type="submit" value="검색">
+				&nbsp;&nbsp;
+				<input type="button" value="글쓰기" onclick="location.href='BoardWriteForm.bo'" />
+			</form>
+		</section>
+		<table>
+			<tr id="tr_top">
+				<td width="100px">번호</td>
+				<td>제목</td>
+				<td width="150px">작성자</td>
+				<td width="150px">날짜</td>
+				<td width="100px">조회수</td>
 			</tr>
-		</c:forEach>
-	</table>
-	</section>
-	<section id="pageList">
-		<!-- 
-		현재 페이지 번호(pageNum)가 1보다 클 경우에만 [이전] 링크 동작
-		=> 클릭 시 BoardList.bo 서블릿 주소 요청하면서 
-		   현재 페이지 번호(pageNum) - 1 값을 page 파라미터로 전달
-		-->
-		<c:choose>
-			<c:when test="${pageNum > 1}">
-				<input type="button" value="이전" onclick="location.href='BoardList.bo?pageNum=${pageNum - 1}'">
-			</c:when>
-			<c:otherwise>
-				<input type="button" value="이전">
-			</c:otherwise>
-		</c:choose>
-			
-		<!-- 페이지 번호 목록은 시작 페이지(startPage)부터 끝 페이지(endPage) 까지 표시 -->
-		<c:forEach var="i" begin="${pageInfo.startPage }" end="${pageInfo.endPage }">
-			<!-- 단, 현재 페이지 번호는 링크 없이 표시 -->
-			<c:choose>
-				<c:when test="${pageNum eq i}">
-					${i }
-				</c:when>
-				<c:otherwise>
-					<a href="BoardList.bo?pageNum=${i }">${i }</a>
-				</c:otherwise>
-			</c:choose>
-		</c:forEach>
-
-		<!-- 현재 페이지 번호(pageNum)가 총 페이지 수보다 작을 때만 [다음] 링크 동작 -->
-		<c:choose>
-			<c:when test="${pageNum < pageInfo.maxPage}">
-				<input type="button" value="다음" onclick="location.href='BoardList.bo?pageNum=${pageNum + 1}'">
-			</c:when>
-			<c:otherwise>
-				<input type="button" value="다음">
-			</c:otherwise>
-		</c:choose>
+			<!-- AJAX 를 사용하여 글목록 조회 결과를 표시할 위치 -->
+		</table>
 	</section>
 </body>
 </html>
