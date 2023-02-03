@@ -405,6 +405,173 @@ public class BoardController {
 		
 	}
 	
+	// "/BoardModifyForm.bo" 서블릿 요청에 대한 modify() 메서드 정의
+	// Service 객체의 getBoard() 메서드를 호출하여 게시물 상세 정보 조회
+	// => 파라미터 : 글번호    리턴타입 : BoardVO(board)
+	// => 조회 결과는 Model 객체에 추가
+	// => board/qna_board_modify.jsp 페이지로 포워딩
+	@GetMapping("/BoardModifyForm.bo")
+	public String modify(@RequestParam int board_num, Model model, HttpSession session) {
+		// 세션 아이디가 존재하지 않으면 "로그인 필수!" 출력하고 이전페이지로 이동시키기
+		String sId = (String)session.getAttribute("sId");
+		if(sId == null || sId.equals("")) {
+			model.addAttribute("msg", "로그인 필수!");
+			return "fail_back";
+		} 
+		
+		BoardVO board = service.getBoard(board_num);
+		
+		model.addAttribute("board", board);
+		
+		return "board/qna_board_modify";
+	}
+	
+	
+	@PostMapping("/BoardModifyPro.bo")
+	public String modifyPro(
+			@ModelAttribute BoardVO board,
+			@RequestParam(defaultValue = "1") int pageNum,
+			Model model,
+			HttpSession session) {
+		// 세션 아이디가 존재하지 않으면 "로그인 필수!" 출력하고 이전페이지로 이동시키기
+		String sId = (String)session.getAttribute("sId");
+		if(sId == null || sId.equals("")) {
+			model.addAttribute("msg", "로그인 필수!");
+			return "fail_back";
+		
+		}
+		
+		// 파일 수정 작업 생략
+		// ---------------------------------------------------
+		//Service 객체의 isBoardWriter()메서드를 호출하여
+		//전달받은 패스워드가 게시물의 패스워드와 일치하는지 비교
+		//파라미터 : 글번호, 패스워드	리턴타입: BoardVO
+		if(service.isBoardWriter(board.getBoard_num(), board.getBoard_pass()) != null) {
+			
+			//패스워드가 일치 할 경우
+			// Service - modifyBoard() 메서드 호출하여 수정 작업 요청
+			// => 파라미터 : BoardVO 객체, 리턴타입 : int(updateCount)	
+			int updateCount = service.modifyBoard(board);
+		
+			//수정 실패 시 "게시물 수정 실패!" 출력 후 이전 페이지로 돌아가기
+			//수정 성공 시 수정되는 파일이 있을 경우 기존 파일 삭제 및 새 파일 이동 작업 생략	
+			//BoardDetail.bo 페이지로 리다이렉트	
+			if(updateCount > 0) { // 수정 성공 시
+				return "redirect:/BoardDetail.bo?board_num=" + board.getBoard_num() + "&pageNum=" + pageNum;
+			} else { // 수정 실패
+				model.addAttribute("msg", "게시물 수정 실패!");
+				return "fail_back";	
+			}
+			
+		} else {
+			//패스워드 일치하지 않을 경우
+			//수정 권한이 없습니다 출력 후 이전 페이지로 이동
+			model.addAttribute("msg", "수정권한이 없습니다!");
+			return "fail_back";			
+			
+		}
+		
+	}
+	
+	//게시판 답글
+	
+	// "/BoardReplyForm.bo" 서블릿 요청에 대한 reply() 메서드 정의
+	// Service 객체의 getBoard() 메서드를 호출하여 게시물 상세 정보 조회
+	// => 파라미터 : 글번호    리턴타입 : BoardVO(board)
+	// => 조회 결과는 Model 객체에 추가
+	// => board/qna_board_reply.jsp 페이지로 포워딩
+	@GetMapping("/BoardReplyForm.bo")
+	public String reply(@RequestParam int board_num, Model model) {
+		BoardVO board = service.getBoard(board_num);
+		
+		model.addAttribute("board", board);
+		
+		return "board/qna_board_reply";
+	}
+	
+	@PostMapping("/BoardReplyPro.bo")
+	public String replyPro(@ModelAttribute BoardVO board, Model model, HttpSession session) {
+		// 세션 아이디가 존재하지 않으면 "로그인 필수!" 출력하고 이전페이지로 이동시키기
+		String sId = (String)session.getAttribute("sId");
+		if(sId == null || sId.equals("")) {
+			model.addAttribute("msg", "로그인 필수!");
+			return "fail_back";
+		}
+		
+		// -------------------------------------------------------------------------
+		String uploadDir = "/resources/upload"; // 가상의 업로드 경로(루트(webapp) 기준)
+		String saveDir = session.getServletContext().getRealPath(uploadDir);
+		// --------------- java.nio 패키지(Files, Path, Paths) 객체 활용 -----------------
+		Path path = Paths.get(saveDir);
+		try {
+			Files.createDirectories(path);
+		} catch (IOException e1) {
+			e1.printStackTrace();
+		}
+		// -------------------------------------------------------------------------------
+		// BoardVO 객체에 전달된 MultipartFile 객체 꺼내기
+		// => 단, 복수개의 파라미터가 동일한 name 속성으로 전달된 경우 배열 타입으로 처리
+		MultipartFile[] mFiles = board.getFiles();
+		
+		// MultipartFile 객체의 getOriginalFilename() 메서드를 통해 파일명 꺼내기
+		// => 답글의 파일 업로드 갯수 1개 제한이므로 0번 배열에 파일명 있음
+		String originalFileName = mFiles[0].getOriginalFilename();
+		String realFileName = "";
+		
+		// 가져온 파일이 있을 경우에만 중복 방지 대책 수행하기
+		if(!originalFileName.equals("")) {
+			String uuid = UUID.randomUUID().toString();
+			
+			// 파일명을 결합하여 보관할 변수에 하나의 파일 문자열 결합
+			realFileName = uuid + "_" + originalFileName;
+		} 
+		
+		// BoardVO 객체에 원본 파일명과 업로드 될 파일명 저장
+		// => 단, 답글의 파일 업로드는 1개로 제한하므로 0번 배열에 파일명이 저장되어 있음
+		board.setBoard_file(originalFileName);
+		board.setBoard_real_file(realFileName);
+		
+		// --------------------------------------------------------------------
+		// Service 객체의 registReplyBoard() 메서드를 호출하여 게시물 등록 작업 요청
+		// => 파라미터 : BoardVO 객체    리턴타입 : int(insertCount)
+		int insertCount = service.registReplyBoard(board);
+		
+		// 등록 성공/실패에 따른 포워딩 작업 수행
+		if(insertCount > 0) { // 성공
+			try {
+				// 주의! 파일 등록 작업 성공 후 반드시 실제 폴더 위치에 업로드 수행 필요!
+				// => MultipartFile 객체는 임시 경로에 파일을 업로드하므로
+				//    작업 성공 시 transferTo() 메서드를 호출하여 실제 위치로 이동 작업 필요
+				//    (파라미터 : new File(업로드경로, 업로드파일명)
+				// MultipartFile 배열 크기만큼 반복 
+				for(int i = 0; i < board.getFiles().length; i++) {
+					// 하나씩 배열에서 객체 꺼내기
+					MultipartFile mFile = board.getFiles()[i];
+//					System.out.println("MultipartFile : " + mFile.getOriginalFilename());
+					
+					// 가져온 파일이 있을 경우에만 파일 이동 작업 수행
+					if(!mFile.getOriginalFilename().equals("")) {
+						mFile.transferTo(
+							new File(saveDir, board.getBoard_real_file())
+						);
+					}
+				}
+			} catch (IllegalStateException e) {
+				e.printStackTrace();
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+			
+			// 글 목록 페이지(BoardList.bo) 로 리다이렉트
+			return "redirect:/BoardList.bo";
+		} else { // 실패
+			// "msg" 속성명으로 "답글 쓰기 실패!" 메세지 전달 후 fail_back 포워딩
+			model.addAttribute("msg", "답글 쓰기 실패!");
+			return "fail_back";
+		}
+		
+	}
+	
 	
 }
 

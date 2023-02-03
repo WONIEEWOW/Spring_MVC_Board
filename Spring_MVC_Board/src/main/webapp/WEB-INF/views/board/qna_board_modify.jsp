@@ -77,7 +77,7 @@
 					<td class="td_left"><label for="board_file">파일</label></td>
 					<!-- 파일 수정할 경우에만 선택하도록 required 속성 제거 -->
 					<td class="td_right">
-						<input type="file" name="board_file">
+						<input type="file" name="files">
 						<br>(기존 파일 : ${board.board_file })
 					</td>
 				</tr>

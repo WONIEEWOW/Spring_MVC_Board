@@ -61,7 +61,24 @@ public class BoardService {
 	public int removeBoard(int board_num) {
 		return mapper.deleteBoard(board_num);
 	}
-	
+
+	// 게시물 수정
+	// => 파라미터 : BoardVO 객체, 리턴타입 : int
+	public int modifyBoard(BoardVO board) {
+		return mapper.updateBoard(board);
+	}
+
+	// 게시물 답글 등록
+	public int registReplyBoard(BoardVO board) {
+		// 기존 답글들의 순서 번호 조정을 위해 updateBoardReSeq() 메서드 호출
+		// => 파라미터 : BoardVO 객체
+		mapper.updateBoardReSeq(board);
+		
+		// 답글 등록 작업을 위해 insertReplyBoard() 메서드 호출
+		// => 파라미터 : BoardVO 객체, 리턴타입 : int
+		return mapper.insertReplyBoard(board);
+	}
+
 }
 
 

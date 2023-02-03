@@ -88,7 +88,9 @@
 			let windowHeight = $(window).height();
 			let documentHeight = $(document).height();
 			
-// 			console.log("scrollTop : " + scrollTop + ", windowHeight : " + windowHeight + ", documentHeight : " + documentHeight + "<br>");
+// 			console.log("scrollTop : " + scrollTop + 
+// 						", windowHeight : " + windowHeight + 
+//						 ", documentHeight : " + documentHeight + "<br>");
 
 			// 2. 스크롤바 위치값 + 창 높이 + x 가 문서 전체 높이 이상이면
 			//    다음 페이지 게시물 목록 로딩하여 추가
@@ -117,12 +119,29 @@
 			
 			// JSONArray 객체를 통해 배열 형태로 전달받은 JSON 데이터를
 			// 반복문을 통해 하나씩 접근하여 객체 꺼내기
+			
 			for(let board of boardList) {
+				
+				//답글일 경우 제목 앞 공백 추가 및 답글 아이콘 추가 작업
+				let space = "";
+				
+				//board 객체의 board_re_lev 값이 0보다 크면 
+				//제목열에 해당 값만큼 공백(&nbsp;) 추가 후
+				// 공백 뒤에 답글 아이콘 이미지(re.gif) 추가
+				if(board.board_re_lev > 0) {
+					for(let i = 0; i< board.board_re_lev; i++){
+						space += "&nbsp;&nbsp;"; // lev 값 1 당 공백 2칸 추가
+					}
+
+					space += "<img src='${pageContext.request.contextPath}/resources/images/reply.png'>&nbsp;";
+				}
+				
 				// 테이블에 표시할 JSON 데이터 출력문 생성
 				// => 출력할 데이터는 board.xxx 형식으로 접근
 				let result = "<tr height='100'>"
 							+ "<td>" + board.board_num + "</td>"
 							+ "<td id='subject'>" 
+								+ space
 								+ "<a href='BoardDetail.bo?board_num=" + board.board_num + "'>"
 								+ board.board_subject + "</a></td>"
 							+ "<td>" + board.board_name + "</td>"

@@ -49,6 +49,18 @@ public interface BoardMapper {
 	// 8. 게시물 삭제
 	// => 파라미터 : 글번호    리턴타입 : int
 	int deleteBoard(int board_num);
+
+	// 9. 게시물 수정
+	//파라미터 : BoardVO 객체	리턴타입 : int(updateCount)
+	int updateBoard(BoardVO board);
+
+	// 10. 기존 답글들의 순서번호 조정
+	// => 파라미터 : BoardVO 객체
+	void updateBoardReSeq(BoardVO board);
+
+	// 11. 답글 등록
+	// => 파라미터 : BoardVO 객체  리턴타입 : int
+	int insertReplyBoard(BoardVO board);
 	
 	
 }
