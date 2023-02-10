@@ -52,7 +52,10 @@ public interface BoardMapper {
 
 	// 9. 게시물 수정
 	//파라미터 : BoardVO 객체	리턴타입 : int(updateCount)
-	int updateBoard(BoardVO board);
+//	int updateBoard(BoardVO board);
+	int updateBoard(
+			@Param("board") BoardVO board, 
+			@Param("board_real_file") String board_real_file);
 
 	// 10. 기존 답글들의 순서번호 조정
 	// => 파라미터 : BoardVO 객체
@@ -61,6 +64,15 @@ public interface BoardMapper {
 	// 11. 답글 등록
 	// => 파라미터 : BoardVO 객체  리턴타입 : int
 	int insertReplyBoard(BoardVO board);
+
+	// 12. 게시물 수정 작업 중 개별 파일 삭제
+	int deleteBoardFile(
+			@Param("board_num") int board_num,
+			@Param("fileName") String fileName);
+
+	//---------------------------------------------------------------
+	//JSON 데이터 요청에 대한 처리
+	List<BoardVO> selectBoardList2(List<BoardVO> boardList);
 	
 	
 }

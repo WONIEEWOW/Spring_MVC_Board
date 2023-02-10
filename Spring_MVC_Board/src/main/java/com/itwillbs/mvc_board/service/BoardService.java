@@ -2,6 +2,7 @@ package com.itwillbs.mvc_board.service;
 
 import java.util.List;
 
+import org.apache.ibatis.annotations.Param;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -65,7 +66,9 @@ public class BoardService {
 	// 게시물 수정
 	// => 파라미터 : BoardVO 객체, 리턴타입 : int
 	public int modifyBoard(BoardVO board) {
-		return mapper.updateBoard(board);
+		//새 업로드 될 파일명을 별도의 파라미터로 추가하여 전달 
+		//=>selectKey를 통해 기존 파일명을 BoardVO 객체에 덮어쓰기 때문
+		return mapper.updateBoard(board, board.getBoard_real_file());
 	}
 
 	// 게시물 답글 등록
@@ -77,6 +80,19 @@ public class BoardService {
 		// 답글 등록 작업을 위해 insertReplyBoard() 메서드 호출
 		// => 파라미터 : BoardVO 객체, 리턴타입 : int
 		return mapper.insertReplyBoard(board);
+	}
+
+	//게시물 수정 작업 중 개별 파일 삭제
+	public int removeBoardFile(
+			@Param("board_num") int board_num, 
+			@Param("fileName") String fileName) {
+		return mapper.deleteBoardFile(board_num, fileName);
+	}
+
+	//---------------------------------------------------------------
+	//JSON 데이터 요청에 대한 처리
+	public List<BoardVO> selectBoardList2(List<BoardVO> boardList) {
+		return mapper.selectBoardList2(boardList);
 	}
 
 }

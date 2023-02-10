@@ -2,10 +2,10 @@ package com.itwillbs.mvc_board.controller;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.PrintWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -20,14 +20,15 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
 import com.itwillbs.mvc_board.service.BoardService;
 import com.itwillbs.mvc_board.vo.BoardVO;
-import com.itwillbs.mvc_board.vo.PageInfo;
 
 @Controller
 public class BoardController {
@@ -103,8 +104,10 @@ public class BoardController {
 //		MultipartFile mFile = board.getFile();
 		
 		// 복수개의 파일을 하나의 이름으로 묶어서 다룰 경우에 사용할 변수 선언
-		String originalFileNames = "";
 		String realFileNames = "";
+		
+		// 파일 이동 처리에 사용할 파일명 저장 List 객체 생성
+		List<String> realFileNameList = new ArrayList<String>();
 		
 		// 복수개의 파일에 접근하기 위한 반복문
 		for(MultipartFile mFile : mFiles) {
@@ -114,6 +117,9 @@ public class BoardController {
 //			System.out.println("원본 파일명 : " + originalFileName);
 //			System.out.println("파일크기 : " + fileSize + " Byte");
 			
+			// 1개의 파일명을 저장할 변수 선언
+			String realFileName = "";
+			
 			// 가져온 파일이 있을 경우에만 중복 방지 대책 수행하기
 			if(!originalFileName.equals("")) {
 				// 파일명 중복 방지 대책
@@ -122,18 +128,20 @@ public class BoardController {
 				String uuid = UUID.randomUUID().toString();
 	//			System.out.println("업로드 될 파일명 : " + uuid + "_" + originalFileName);
 				
-				// 파일명을 결합하여 보관할 변수에 하나의 파일 문자열 결합
-				originalFileNames += originalFileName + "/";
-				realFileNames += uuid + "_" + originalFileName + "/";
-			} else {
-				// 파일이 존재하지 않을 경우 널스트링으로 대체(뒤에 슬래시 포함)
-				originalFileNames += "/";
-				realFileNames += "/";
+				// UUID 와 "_" 와 실제 파일명과 "/" 기호를 결합하여 파일명 생성
+				realFileName = uuid + "_" + originalFileName + "/";
 			}
+			
+			// 업로드될 파일명에 1개 파일명을 결합
+			realFileNames += realFileName;
+			// 각 파일명을 List 객체에도 추가
+			// => MultipartFile 객체를 통해 실제 폴더로 이동 시킬 때 사용
+			realFileNameList.add(realFileName);
+			
 		}
 		
 		// BoardVO 객체에 원본 파일명과 업로드 될 파일명 저장
-		board.setBoard_file(originalFileNames);
+		board.setBoard_file(""); // 사용하지 않는 컬럼이므로 임시로 널스트링("") 값 전달
 		board.setBoard_real_file(realFileNames);
 		System.out.println("원본 파일명 : " + board.getBoard_file());
 		System.out.println("업로드 될 파일명 : " + board.getBoard_real_file());
@@ -154,18 +162,13 @@ public class BoardController {
 				//    작업 성공 시 transferTo() 메서드를 호출하여 실제 위치로 이동 작업 필요
 				//    (파라미터 : new File(업로드경로, 업로드파일명)
 				// MultipartFile 배열 크기만큼 반복 
-				for(int i = 0; i < board.getFiles().length; i++) {
+				for(int i = 0; i < mFiles.length; i++) {
 					// 하나씩 배열에서 객체 꺼내기
-					MultipartFile mFile = board.getFiles()[i];
-//					System.out.println("MultipartFile : " + mFile.getOriginalFilename());
-					
 					// 가져온 파일이 있을 경우에만 파일 이동 작업 수행
-					if(!mFile.getOriginalFilename().equals("")) {
-						// 실제 파일명을 "/" 기준으로 분리하여 
-						// 배열 인덱스와 동일한 위치의 문자열을 이동할 파일명으로 사용
-						mFile.transferTo(
-							new File(saveDir, board.getBoard_real_file().split("/")[i])
-						);
+					if(!mFiles[i].getOriginalFilename().equals("")) {
+						// List 객체에 저장된 파일명을 사용하여 해당 파일을 실제 위치로 이동
+						mFiles[i].transferTo(
+							new File(saveDir, realFileNameList.get(i)));
 					}
 				}
 			} catch (IllegalStateException e) {
@@ -417,7 +420,7 @@ public class BoardController {
 		if(sId == null || sId.equals("")) {
 			model.addAttribute("msg", "로그인 필수!");
 			return "fail_back";
-		} 
+		}
 		
 		BoardVO board = service.getBoard(board_num);
 		
@@ -426,54 +429,106 @@ public class BoardController {
 		return "board/qna_board_modify";
 	}
 	
-	
-	@PostMapping("/BoardModifyPro.bo")
+	@PostMapping(value = "/BoardModifyPro.bo")
 	public String modifyPro(
-			@ModelAttribute BoardVO board,
+			@ModelAttribute BoardVO board, 
 			@RequestParam(defaultValue = "1") int pageNum,
-			Model model,
-			HttpSession session) {
+			Model model, HttpSession session) {
 		// 세션 아이디가 존재하지 않으면 "로그인 필수!" 출력하고 이전페이지로 이동시키기
 		String sId = (String)session.getAttribute("sId");
 		if(sId == null || sId.equals("")) {
 			model.addAttribute("msg", "로그인 필수!");
 			return "fail_back";
-		
 		}
 		
-		// 파일 수정 작업 생략
-		// ---------------------------------------------------
-		//Service 객체의 isBoardWriter()메서드를 호출하여
-		//전달받은 패스워드가 게시물의 패스워드와 일치하는지 비교
-		//파라미터 : 글번호, 패스워드	리턴타입: BoardVO
-		if(service.isBoardWriter(board.getBoard_num(), board.getBoard_pass()) != null) {
-			
-			//패스워드가 일치 할 경우
-			// Service - modifyBoard() 메서드 호출하여 수정 작업 요청
-			// => 파라미터 : BoardVO 객체, 리턴타입 : int(updateCount)	
-			int updateCount = service.modifyBoard(board);
+		// -------------------------------------------------------------------------
+		String uploadDir = "/resources/upload"; // 가상의 업로드 경로(루트(webapp) 기준)
+		String saveDir = session.getServletContext().getRealPath(uploadDir);
+		// --------------- java.nio 패키지(Files, Path, Paths) 객체 활용 -----------------
+		// 1. Paths.get() 메서드를 호출하여 대상 파일 또는 경로에 대한 Path 객체 얻어오기
+		Path path = Paths.get(saveDir);
+		// 2. Files 클래스의 createDirectories() 메서드를 호출하여
+		//    지정된 경로 또는 파일 생성하기
+		try {
+			Files.createDirectories(path);
+		} catch (IOException e1) {
+			e1.printStackTrace();
+		}
+		// -------------------------------------------------------------------------------
+		MultipartFile[] mFiles = board.getFiles();
 		
-			//수정 실패 시 "게시물 수정 실패!" 출력 후 이전 페이지로 돌아가기
-			//수정 성공 시 수정되는 파일이 있을 경우 기존 파일 삭제 및 새 파일 이동 작업 생략	
-			//BoardDetail.bo 페이지로 리다이렉트	
-			if(updateCount > 0) { // 수정 성공 시
-				return "redirect:/BoardDetail.bo?board_num=" + board.getBoard_num() + "&pageNum=" + pageNum;
-			} else { // 수정 실패
-				model.addAttribute("msg", "게시물 수정 실패!");
-				return "fail_back";	
+		// 복수개의 파일을 하나의 이름으로 묶어서 다룰 경우에 사용할 변수 선언
+		String realFileNames = "";
+		
+		// 파일 이동 처리에 사용할 파일명 저장 List 객체 생성
+		List<String> realFileNameList = new ArrayList<String>();
+		
+		// 복수개의 파일에 접근하기 위한 반복문
+		for(MultipartFile mFile : mFiles) {
+			// MultipartFile 객체의 getOriginalFilename() 메서드를 통해 파일명 꺼내기
+			String originalFileName = mFile.getOriginalFilename();
+			
+			// 1개의 파일명을 저장할 변수 선언
+			String realFileName = "";
+			
+			// 가져온 파일이 있을 경우에만 중복 방지 대책 수행하기
+			if(!originalFileName.equals("")) {
+				// 파일명 중복 방지 대책
+				String uuid = UUID.randomUUID().toString();
+				
+				// UUID 와 "_" 와 실제 파일명과 "/" 기호를 결합하여 파일명 생성
+				realFileName = uuid + "_" + originalFileName + "/";
 			}
 			
-		} else {
-			//패스워드 일치하지 않을 경우
-			//수정 권한이 없습니다 출력 후 이전 페이지로 이동
-			model.addAttribute("msg", "수정권한이 없습니다!");
-			return "fail_back";			
+			// 업로드될 파일명에 1개 파일명을 결합
+			realFileNames += realFileName;
+			// 각 파일명을 List 객체에도 추가
+			// => MultipartFile 객체를 통해 실제 폴더로 이동 시킬 때 사용
+			realFileNameList.add(realFileName);
+		}
+		
+		// BoardVO 객체에 원본 파일명과 업로드 될 파일명 저장
+		board.setBoard_file(""); // 사용하지 않는 컬럼이므로 임시로 널스트링("") 값 전달
+		board.setBoard_real_file(realFileNames);
+		// --------------------------------------------------------------------
+		// Service 객체의 isBoardWriter() 메서드를 호출하여 
+		// 전달받은 패스워드가 게시물의 패스워드와 일치하는지 비교
+		// => 파라미터 : 글번호, 패스워드    리턴타입 : BoardVO
+		if(service.isBoardWriter(board.getBoard_num(), board.getBoard_pass()) != null) {
+			// 패스워드 일치할 경우
+			// Service - modifyBoard() 메서드 호출하여 수정 작업 요청
+			// => 파라미터 : BoardVO 객체, 리턴타입 : int(updateCount)
+			int updateCount = service.modifyBoard(board);
 			
+			// 수정 실패 시 "게시물 수정 실패!" 출력 후 이전페이지로 돌아가기
+			// 수정 성공 시 수정되는 파일이 있을 경우 새 파일 이동 작업 수행
+			// => BoardDetail.bo 페이지로 리다이렉트
+			if(updateCount > 0) {
+				try {
+					for(int i = 0; i < mFiles.length; i++) {
+						if(!mFiles[i].getOriginalFilename().equals("")) {
+							mFiles[i].transferTo(new File(saveDir, realFileNameList.get(i)));
+						}
+					}
+				} catch (IllegalStateException e) {
+					e.printStackTrace();
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
+				
+				return "redirect:/BoardDetail.bo?board_num=" + board.getBoard_num() + "&pageNum=" + pageNum;
+			} else {
+				model.addAttribute("msg", "게시물 수정 실패!");
+				return "fail_back";
+			}
+		} else {
+			// 패스워드 일치하지 않을 경우
+			// "수정 권한이 없습니다!" 메세지 출력 후 이전페이지로 돌아가기
+			model.addAttribute("msg", "수정 권한이 없습니다!");
+			return "fail_back";
 		}
 		
 	}
-	
-	//게시판 답글
 	
 	// "/BoardReplyForm.bo" 서블릿 요청에 대한 reply() 메서드 정의
 	// Service 객체의 getBoard() 메서드를 호출하여 게시물 상세 정보 조회
@@ -481,7 +536,14 @@ public class BoardController {
 	// => 조회 결과는 Model 객체에 추가
 	// => board/qna_board_reply.jsp 페이지로 포워딩
 	@GetMapping("/BoardReplyForm.bo")
-	public String reply(@RequestParam int board_num, Model model) {
+	public String reply(@RequestParam int board_num, Model model, HttpSession session) {
+		// 세션 아이디가 존재하지 않으면 "로그인 필수!" 출력하고 이전페이지로 이동시키기
+		String sId = (String)session.getAttribute("sId");
+		if(sId == null || sId.equals("")) {
+			model.addAttribute("msg", "로그인 필수!");
+			return "fail_back";
+		}
+		
 		BoardVO board = service.getBoard(board_num);
 		
 		model.addAttribute("board", board);
@@ -551,6 +613,8 @@ public class BoardController {
 					
 					// 가져온 파일이 있을 경우에만 파일 이동 작업 수행
 					if(!mFile.getOriginalFilename().equals("")) {
+						// 실제 파일명을 "/" 기준으로 분리하여 
+						// 배열 인덱스와 동일한 위치의 문자열을 이동할 파일명으로 사용
 						mFile.transferTo(
 							new File(saveDir, board.getBoard_real_file())
 						);
@@ -572,6 +636,124 @@ public class BoardController {
 		
 	}
 	
+	// 글 수정 시 개별 파일 삭제 처리를 별도로 수행(AJAX 요청)
+	// => 파라미터 : 글번호, 파일명, 세션 객체, 응답 객체 필요
+	@ResponseBody
+	@PostMapping("/BoardDeleteFile.bo")
+	public void deleteFile(
+			@RequestParam int board_num,
+			@RequestParam String board_pass,
+			@RequestParam String fileName,
+			HttpSession session, HttpServletResponse response) {
+//		System.out.println(board_num + ", " + fileName);
+		
+		response.setCharacterEncoding("UTF-8");
+		
+		try {
+			// Service 객체의 isBoardWriter() 메서드를 호출하여 
+			// 전달받은 패스워드가 게시물의 패스워드와 일치하는지 비교
+			// => 파라미터 : 글번호, 패스워드    리턴타입 : BoardVO
+			if(service.isBoardWriter(board_num, board_pass) != null) {
+				// 게시물 패스워드가 일치할 경우 
+				// Service 객체의 removeBoardFile() 메서드 호출하여 개별 파일 삭제 요청
+				// => 파라미터 : 글번호, 파일명
+				int deleteCount = service.removeBoardFile(board_num, fileName);
+				
+				// DB 파일 삭제 성공 시 실제 파일 삭제
+				if(deleteCount > 0) { // 삭제 성공
+					String uploadDir = "/resources/upload"; // 가상의 업로드 경로(루트(webapp) 기준)
+					String saveDir = session.getServletContext().getRealPath(uploadDir);
+					
+					Path path = Paths.get(saveDir + "/" + fileName);
+					Files.deleteIfExists(path);
+					
+					response.getWriter().print("true");
+				} else { // 삭제 실패
+					response.getWriter().print("false");
+				}
+				
+			} else {
+				response.getWriter().print("incorrectPasswd");
+			}
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		
+	}
+	
+	
+	
+	// =====================================================================
+	// AJAX 를 활용한 JSON 데이터를 요청 정보에 담아 전송할 경우 처리
+	// 파라미터 지정 시 @RequestBody 어노테이션을 사용하여 지정하고
+	// 파라미터의 타입은 해당 요청 데이터를 저장 가능한 VO 객체를 지정하거나
+	// Map<String, Object> 타입으로 지정
+	// => GSON 또는 JACKSON 등의 JSON 처리 라이브러리 별도 추가 필요(기본 JSON 라이브러리 불가)
+//	@PostMapping("/BoardWriteProAjax.bo")
+//	public String writeProAjax(@RequestBody Map<String, Object> map) {
+////		System.out.println(map);
+//		System.out.println("글쓴이 : " + map.get("board_name"));
+//		System.out.println("패스워드 : " + map.get("board_pass"));
+//		
+//		return "";
+//	}
+	
+	@ResponseBody
+	@PostMapping("/BoardWriteProAjax.bo")
+	public void writeProAjax(@RequestBody BoardVO board, HttpServletResponse response) {
+//		System.out.println(map);
+		System.out.println("글쓴이(BoardVO) : " + board.getBoard_name());
+		System.out.println("패스워드(BoardVO) : " + board.getBoard_pass());
+		
+		try {
+			response.setCharacterEncoding("UTF-8");
+			response.getWriter().print("성공"); // toString() 생략됨
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		
+	}
+	
+	
+	// ===============================================================================
+	// 기본 목록 뷰페이지로 이동하는 서블릿 처리
+	@GetMapping("/BoardList2.bo")
+	public String list2() {
+		return "board/qna_board_list2";
+	}
+	
+	// 문자열로 전달되는 요청 데이터(JSON)를 문자열로 전달받기
+	@ResponseBody
+	@PostMapping("/BoardJson.bo")
+	public String list2Json(@RequestBody String jsonData) {
+		System.out.println(jsonData);
+		
+		// org.json.JSONArray 와 JSONObject 객체 활용하여 JSON 데이터 파싱할 경우
+//		JSONArray arr = new JSONArray(jsonData);
+//		JSONObject ob = new JSONObject(arr.get(0));
+		
+		// com.google.gson.Gson 객체를 활용하여 JSON 데이터 파싱할 경우
+		Gson gson = new Gson();
+		
+		// JSON 데이터(배열 내부에 객체가 저장되어 있는 JSON 문자열)을 파싱하여 저장할
+		// 자바의 객체로 변환하기 위해 Gson 객체의 fromJson() 메서드 활용
+		// => gson.fromJson(JSON 데이터, 파싱할클래스명.class);
+		// => 단, List 등의 복합 객체일 경우 별도의 클래스를 통해 타입을 지정해야함
+		//    ex) new TypeToken<List<BoardVO>>(){}.getType()
+		List<BoardVO> boardList = 
+				gson.fromJson(jsonData, new TypeToken<List<BoardVO>>(){}.getType());
+		
+		// List 데이터 처리 방법 1. 반복문을 통해 List 객체내의 BoardVO 객체를 전달하여 처리
+//		for(BoardVO board : boardList) {
+//			service.registBoard(board);
+//		}
+		
+		// List 데이터 처리 방법 2. 반복문 없이 List 객체 자체를 전달하여 처리
+		List<BoardVO> boardList2 = service.selectBoardList2(boardList);
+		System.out.println(boardList2);
+		
+		return "";
+	}
 	
 }
 
